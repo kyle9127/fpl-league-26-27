@@ -247,33 +247,37 @@
     }
 
     async function loadCloudData() {
-        if (!currentPasscode) return;
-        const targetId = `passcode_${currentPasscode}`;
+       if (!currentPasscode) return;
+    const targetId = `passcode_${currentPasscode}`;
 
-        let { data, error } = await supabaseClient
-            .from('leagues')
-            .select('*')
-            .eq('user_id', targetId)
-            .maybeSingle();
+    let { data, error } = await supabaseClient
+        .from('leagues')
+        .select('*')
+        .eq('user_id', targetId)
+        .maybeSingle();
 
-        if (error) {
-            console.error("載入失敗:", error);
-            alert("⚠️ 無法載入雲端紀錄！");
-            return;
-        }
+    // 只在真正的網絡或數據庫異常時才報錯
+    if (error && error.code !== 'PGRST116') {
+        console.error("載入失敗:", error);
+        alert("⚠️ 無法連線至雲端，請檢查網路連線或 SQL 權限設定！");
+        return;
+    }
 
-        if (data) {
-            config = data.config || defaultConfig;
-            history = data.history || [];
-        } else {
-            config = defaultConfig;
-            history = [];
-        }
+    // 如果找到舊紀錄就載入；如果完全是新 Passcode，就初始化預設資料
+    if (data) {
+        config = data.config || defaultConfig;
+        history = data.history || [];
+    } else {
+        config = defaultConfig;
+        history = [];
+        // 自動幫全新 Passcode 在雲端建立初始化紀錄
+        await saveState();
+    }
 
-        initConfigInputs();
-        initInputData();
-        renderInputTable();
-        recalculateAll();
+    initConfigInputs();
+    initInputData();
+    renderInputTable();
+    recalculateAll();
     }
 
     function toggleConfig() {
