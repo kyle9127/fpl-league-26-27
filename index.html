@@ -38,7 +38,6 @@
         .mid-stage-box { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px; text-align: center; }
         .auth-box { background: #37003c; color: white; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
         .passcode-input { font-size: 24px; letter-spacing: 10px; width: 140px !important; text-align: center; font-weight: bold; }
-        .auth-btn-group { display: flex; gap: 10px; max-width: 280px; margin: 15px auto 0 auto; }
     </style>
 </head>
 <body>
@@ -47,12 +46,11 @@
     <!-- 🔑 4 位數字 Passcode 驗證區 -->
     <div id="authCard" class="auth-box">
         <h2>🔑 輸入 4 位數字 Passcode</h2>
-        <p style="font-size:12px; color:#00ff87;">首次使用請點擊「建立新聯賽」，已有 Passcode 請點擊「登入」</p>
+        <p style="font-size:12px; color:#00ff87;">輸入任何 4 位數字即可直接進入或自動建立專屬聯賽</p>
         <input type="password" id="passcode" class="passcode-input" maxlength="4" placeholder="••••" pattern="[0-9]*" inputmode="numeric"><br>
         
-        <div class="auth-btn-group">
-            <button onclick="handleLogin()" style="background:#00ff87; color:#37003c;">🔑 登入</button>
-            <button onclick="handleCreate()" style="background:#17a2b8; color:white;">✨ 建立新聯賽</button>
+        <div style="max-width: 280px; margin: 15px auto 0 auto;">
+            <button onclick="handleSmartAuth()" style="background:#00ff87; color:#37003c;">🚀 進入 / 建立聯賽</button>
         </div>
     </div>
 
@@ -186,11 +184,12 @@
     let currentInputData = [];
     let currentUser = null;
 
-    // 加強 Password 格式以符合 Supabase 嚴格密碼原則
+    // 格式化 Passcode，確保補滿 4 位數，避免格式混亂
     function getAuthFromCode(code) {
+        let cleanCode = code.toString().padStart(4, '0');
         return {
-            email: `league_${code}@gmail.com`,
-            password: `FPL_League_${code}_Secured_#2026`
+            email: `fpl_league_${cleanCode}@fpl.local`,
+            password: `FPL_Pass_${cleanCode}_#2026`
         };
     }
 
@@ -209,7 +208,7 @@
             currentUser = user;
             document.getElementById('authCard').style.display = 'none';
             document.getElementById('mainApp').style.display = 'block';
-            let passcodeDisplay = user.email.replace('league_', '').replace('@gmail.com', '');
+            let passcodeDisplay = user.email.replace('fpl_league_', '').replace('@fpl.local', '');
             document.getElementById('userDisplay').innerText = `🔑 Passcode: ${passcodeDisplay}`;
             await loadCloudData();
         } else {
@@ -218,45 +217,28 @@
         }
     }
 
-    // 登入現有 Passcode
-    async function handleLogin() {
+    // 🧠 智慧驗證：先嘗試登入，失敗則自動註冊，一鍵無縫通關
+    async function handleSmartAuth() {
         let code = getCodeInput();
         if (!code) return;
 
         let { email, password } = getAuthFromCode(code);
-        let { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-        if (error) {
-            alert("❌ 登入失敗：Passcode 未建立或輸入錯誤！\n（如果是首次使用，請點選「建立新聯賽」）");
-        } else {
+        // 步驟 1: 先嘗試登入
+        let { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+        if (!loginError && loginData.user) {
             checkAuth();
+            return;
         }
-    }
 
-    // 建立新 Passcode
-    async function handleCreate() {
-        let code = getCodeInput();
-        if (!code) return;
+        // 步驟 2: 如果登入失敗，嘗試註冊（建立新聯賽）
+        let { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({ email, password });
 
-        let { email, password } = getAuthFromCode(code);
-
-        // 嘗試註冊
-        let { data, error } = await supabaseClient.auth.signUp({ email, password });
-
-        if (error) {
-            // 如果報錯，嘗試直接登入（可能 Passcode 之前已成功註冊過）
-            let { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({ email, password });
-            
-            if (!loginError) {
-                alert(`🎉 成功登入已有 Passcode [${code}]！`);
-                checkAuth();
-                return;
-            }
-
-            alert(`⚠️ 建立失敗：${error.message || '此 Passcode 無法使用，請嘗試其他 4 位數字！'}`);
+        if (signUpError) {
+            alert(`❌ 驗證失敗：${signUpError.message || '請嘗試更換一個 4 位數字！'}`);
         } else {
-            alert(`🎉 Passcode [${code}] 建立成功！即將進入系統。`);
-            // Supabase 註冊成功後自動登入
+            // 註冊成功後自動登入
             await supabaseClient.auth.signInWithPassword({ email, password });
             checkAuth();
         }
