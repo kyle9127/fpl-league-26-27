@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英超經理人 聯賽計分台 (雲端同步版)</title>
+    <title>英超經理人 聯賽計分台 (Passcode 版)</title>
     <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -17,53 +17,45 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background: #eef2f5; }
-        input[type="number"], input[type="text"], input[type="email"], input[type="password"] { width: 85%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+        input[type="number"], input[type="text"], input[type="password"] { width: 85%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
         button { background: #00ff87; color: #37003c; font-weight: bold; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 16px; margin-top: 10px; }
         button:hover { background: #00e076; }
         .btn-small { width: auto; padding: 4px 8px; font-size: 12px; margin: 0 2px; }
         .btn-edit { background: #ffc107; color: #000; }
         .btn-move { background: #17a2b8; color: white; }
         .btn-sort { background: #0275d8; color: white; }
-        .btn-secondary { background: #6c757d; color: white; }
         .btn-add { background: #28a745; color: white; }
         .btn-remove { background: #dc3545; color: white; }
         .danger-btn { background: #ff4d4d; color: white; margin-top: 5px; }
         .milestone { background: #fff3cd; color: #856404; font-weight: bold; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-        .editing-mode { border: 2px solid #ffc107; background: #fffdf5; }
-        .hit-note { font-size: 11px; color: #d9534f; display: block; }
         .rank-badge { font-weight: bold; display: inline-block; width: 20px; height: 20px; line-height: 20px; border-radius: 50%; background: #37003c; color: white; font-size: 12px; }
         .collapsible { cursor: pointer; background: #eef2f5; padding: 10px; border-radius: 6px; font-weight: bold; text-align: center; margin-bottom: 10px; }
         .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         .config-item { display: flex; flex-direction: column; font-size: 12px; }
         .config-item label { margin-bottom: 3px; font-weight: bold; }
-        .backup-btns { display: flex; gap: 10px; margin-top: 10px; }
         .player-manage-row { display: flex; gap: 8px; margin-top: 10px; }
         .formula-hint { background: #eef7ff; border-left: 4px solid #0275d8; padding: 8px; font-size: 11px; margin-top: 10px; border-radius: 0 4px 4px 0; }
         .mid-stage-box { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px; text-align: center; }
-        .auth-box { background: #37003c; color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
-        .auth-box input { margin: 5px 0; width: 80%; max-width: 280px; }
+        .auth-box { background: #37003c; color: white; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+        .passcode-input { font-size: 24px; letter-spacing: 10px; width: 140px !important; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- 雲端登入視窗 -->
+    <!-- 🔑 4 位數字 Passcode 登入解鎖區 -->
     <div id="authCard" class="auth-box">
-        <h2>🔐 聯賽雲端登入</h2>
-        <p style="font-size:12px; color:#00ff87;">登入後可於任何手機/電腦同步及檢視比分</p>
-        <input type="email" id="authEmail" placeholder="輸入你的 Email"><br>
-        <input type="password" id="authPassword" placeholder="輸入密碼"><br>
-        <div style="display:flex; justify-content:center; gap:10px; max-width:300px; margin:10px auto 0 auto;">
-            <button onclick="handleLogin()">登入</button>
-            <button onclick="handleSignUp()" style="background:#17a2b8; color:white;">註冊</button>
-        </div>
+        <h2>🔑 輸入 4 位數字 Passcode</h2>
+        <p style="font-size:12px; color:#00ff87;">輸入你的專屬數字密碼以讀取/同步雲端資料</p>
+        <input type="password" id="passcode" class="passcode-input" maxlength="4" placeholder="••••" pattern="[0-9]*" inputmode="numeric"><br>
+        <button onclick="handlePasscodeLogin()" style="max-width:200px; margin-top:15px;">進入計分台</button>
     </div>
 
     <!-- 登入後顯示內容 -->
     <div id="mainApp" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; background:#eef2f5; padding:8px 15px; border-radius:8px; margin-bottom:15px; font-size:12px;">
             <span id="userDisplay" style="font-weight:bold; color:#37003c;"></span>
-            <button onclick="handleLogout()" style="width:auto; margin:0; padding:4px 10px; font-size:12px; background:#dc3545; color:white;">登出</button>
+            <button onclick="handleLogout()" style="width:auto; margin:0; padding:4px 10px; font-size:12px; background:#dc3545; color:white;">切換 Passcode</button>
         </div>
 
         <h1>⚽ 英超經理人 聯賽計分台</h1>
@@ -171,7 +163,6 @@
 </div>
 
 <script>
-    // 已為你自動嵌入專屬的 Supabase URL 同 API Key
     const SUPABASE_URL = 'https://tdmiktmcxzwqwgnobnrl.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_FHTZ1d-nvHek9ULQtcB6dw_tIH4AEKZ';
 
@@ -190,13 +181,22 @@
     let currentInputData = [];
     let currentUser = null;
 
+    // 將 4 位數字轉換為背景 email & password
+    function getAuthFromCode(code) {
+        return {
+            email: `league_${code}@fpl-app.internal`,
+            password: `Pass_${code}_SecureKey`
+        };
+    }
+
     async function checkAuth() {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (user) {
             currentUser = user;
             document.getElementById('authCard').style.display = 'none';
             document.getElementById('mainApp').style.display = 'block';
-            document.getElementById('userDisplay').innerText = `👤 帳號: ${user.email}`;
+            let passcodeDisplay = user.email.replace('league_', '').replace('@fpl-app.internal', '');
+            document.getElementById('userDisplay').innerText = `🔑 Passcode: ${passcodeDisplay}`;
             await loadCloudData();
         } else {
             document.getElementById('authCard').style.display = 'block';
@@ -204,25 +204,34 @@
         }
     }
 
-    async function handleLogin() {
-        let email = document.getElementById('authEmail').value.trim();
-        let password = document.getElementById('authPassword').value;
-        let { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) alert("登入失敗: " + error.message);
-        else checkAuth();
-    }
+    async function handlePasscodeLogin() {
+        let code = document.getElementById('passcode').value.trim();
+        if (code.length !== 4 || isNaN(code)) {
+            alert("請輸入完整的 4 位數字 Passcode！");
+            return;
+        }
 
-    async function handleSignUp() {
-        let email = document.getElementById('authEmail').value.trim();
-        let password = document.getElementById('authPassword').value;
-        let { data, error } = await supabaseClient.auth.signUp({ email, password });
-        if (error) alert("註冊失敗: " + error.message);
-        else alert("註冊成功！請直接點擊「登入」。");
+        let { email, password } = getAuthFromCode(code);
+
+        // 嘗試登入
+        let { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        
+        // 如果該 Passcode 尚未存在，自動註冊並登入
+        if (error) {
+            let signUpRes = await supabaseClient.auth.signUp({ email, password });
+            if (signUpRes.error) {
+                alert("進入失敗: " + signUpRes.error.message);
+                return;
+            }
+        }
+        
+        checkAuth();
     }
 
     async function handleLogout() {
         await supabaseClient.auth.signOut();
         currentUser = null;
+        document.getElementById('passcode').value = '';
         checkAuth();
     }
 
@@ -353,7 +362,7 @@
                 <td><input type="number" value="${item.rawPts}" onchange="updateRowData(${index}, 'rawPts', this.value)" placeholder="0"></td>
                 <td>
                     <input type="number" value="${item.hitsCount}" onchange="updateRowData(${index}, 'hitsCount', this.value)" placeholder="0">
-                    ${hitDeduction > 0 ? `<span class="hit-note">(-${hitDeduction}分)</span>` : ''}
+                    ${hitDeduction > 0 ? `<span class="hit-note" style="color:#d9534f; font-size:11px; display:block;">(-${hitDeduction}分)</span>` : ''}
                 </td>
                 <td>
                     <button class="btn-small btn-move" onclick="moveRow(${index}, -1)">⬆️</button>
