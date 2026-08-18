@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英超經理人 聯賽計分台</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 15px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1, h2 { text-align: center; color: #37003c; margin-bottom: 10px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .pool-box { display: flex; justify-content: space-around; text-align: center; background: #37003c; color: white; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
+        .pool-box div { flex: 1; }
+        .pool-amount { font-size: 20px; font-weight: bold; color: #00ff87; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #eef2f5; }
+        input[type="number"], input[type="text"] { width: 85%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+        button { background: #00ff87; color: #37003c; font-weight: bold; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 16px; margin-top: 10px; }
+        button:hover { background: #00e076; }
+        .btn-small { width: auto; padding: 4px 8px; font-size: 12px; margin: 0 2px; }
+        .btn-edit { background: #ffc107; color: #000; }
+        .btn-move { background: #17a2b8; color: white; }
+        .btn-sort { background: #0275d8; color: white; }
+        .btn-sort:hover { background: #025aa5; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-add { background: #28a745; color: white; }
+        .btn-remove { background: #dc3545; color: white; }
+        .danger-btn { background: #ff4d4d; color: white; margin-top: 5px; }
+        .milestone { background: #fff3cd; color: #856404; font-weight: bold; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .editing-mode { border: 2px solid #ffc107; background: #fffdf5; }
+        .hit-note { font-size: 11px; color: #d9534f; display: block; }
+        .rank-badge { font-weight: bold; display: inline-block; width: 20px; height: 20px; line-height: 20px; border-radius: 50%; background: #37003c; color: white; font-size: 12px; }
+        .collapsible { cursor: pointer; background: #eef2f5; padding: 10px; border-radius: 6px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .config-item { display: flex; flex-direction: column; font-size: 12px; }
+        .config-item label { margin-bottom: 3px; font-weight: bold; }
+        .backup-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .player-manage-row { display: flex; gap: 8px; margin-top: 10px; }
+        .formula-hint { background: #eef7ff; border-left: 4px solid #0275d8; padding: 8px; font-size: 11px; margin-top: 10px; border-radius: 0 4px 4px 0; }
+        .mid-stage-box { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⚽ 英超經理人 聯賽計分台</h1>
+
+    <!-- 彩池狀態 -->
+    <div class="card">
+        <h2>🏆 當前彩池狀態</h2>
+        <div class="pool-box">
+            <div>當前進度<div class="pool-amount" id="currentWeekDisplay">Week 0</div></div>
+            <div>當前小彩池<div class="pool-amount" id="weeklyPool">$0</div></div>
+            <div>年終大 Pool<div class="pool-amount" id="grandPool">$0</div></div>
+        </div>
+    </div>
+
+    <!-- 設定區（玩家管理 + 金額參數） -->
+    <div class="card">
+        <div class="collapsible" onclick="toggleConfig()">⚙️ 聯賽設定 (玩家管理 / 各名次金額) 👇</div>
+        <div id="configArea" style="display: none;">
+            <h3>👥 玩家管理 (<span id="playerCountDisplay">6</span> 人)</h3>
+            <div id="namesInputGrid" class="config-grid">
+                <!-- 玩家名稱輸入框 -->
+            </div>
+            <div class="player-manage-row">
+                <button class="btn-add" onclick="addPlayer()">➕ 新增一位玩家</button>
+                <button class="btn-remove" onclick="removePlayer()">➖ 減少一位玩家</button>
+            </div>
+
+            <h3 style="margin-top: 20px;">💰 各名次當週 +/- 金額設定</h3>
+            <p style="font-size:11px; color:#666; margin-top:-5px;">
+                💡 正數為<b>贏錢/獎金</b>（如 50），負數為<b>輸錢/參賽費</b>（如 -30，第 3 名想俾少啲可設 -15）。
+            </p>
+            <div id="rankPayoutsGrid" class="config-grid">
+                <!-- 各名次金額輸入框 -->
+            </div>
+
+            <h3 style="margin-top: 20px;">🏆 階段勝出者金額設定</h3>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label>W9 階段勝出者獎金 ($)</label>
+                    <input type="number" id="cfg_w9WinnerPayout" value="200">
+                </div>
+                <div class="config-item">
+                    <label>W19 階段勝出者獎金 ($)</label>
+                    <input type="number" id="cfg_w19WinnerPayout" value="200">
+                </div>
+            </div>
+
+            <div class="formula-hint">
+                💡 <b>自動計算說明：</b><br>
+                • 每週自動入小 Pool 錢 = <code>所有名次金額總和的相反數</code><br>
+                • 以目前設定計算：每週所有玩家淨收支加總為 <b id="calcWeeklyNetSum" style="color:#d9534f;">$0</b>，自動進入當週小 Pool 額為 <b id="calcWeeklyPoolAdd" style="color:#28a745;">$0</b>。<br>
+                • <b>W9 / W19 階段結算：</b>系統會自動代入勝出者金額，剩餘彩池將<b>自動滾入年終大 Pool</b>。
+            </div>
+
+            <button onclick="saveSettings()" style="margin-top:15px;">💾 儲存所有設定</button>
+        </div>
+    </div>
+
+    <!-- 輸入/編輯分數區塊 -->
+    <div class="card" id="inputCard">
+        <h2 id="inputTitle">📝 輸入 Week 1 成績</h2>
+        <p style="text-align:center; font-size:12px; color:#666; margin-top:-5px;">
+            輸入分數後點擊<b>「⚡ 按分數自動排序」</b>，若有同分可用「⬆️ / ⬇️」微調名次。
+        </p>
+
+        <div id="midStageInputArea" class="mid-stage-box" style="display:none;">
+            <b>🎉 此週為階段結算週（W<span id="midStageWeekNum">9</span>）！</b><br>
+            當時累積小彩池：<b style="color:#28a745;" id="currentAccumulatedPool">$0</b><br>
+            <div style="margin-top:5px; display:flex; justify-content:center; align-items:center; gap:8px;">
+                <label>勝出者獨得金額 ($)：</label>
+                <input type="number" id="midStageWinnerPayout" style="width:100px; text-align:center;" value="0">
+            </div>
+            <div style="font-size:11px; color:#666; margin-top:4px;">
+                💡 剩餘金額（<span id="midStageGrandCalc">$0</span>）將自動滾入年終大 Pool。
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>當週名次</th>
+                    <th>玩家</th>
+                    <th>當週得分</th>
+                    <th>Hits 次數<br><span style="font-weight:normal; font-size:11px;">(-4分/次)</span></th>
+                    <th>手動微調</th>
+                </tr>
+            </thead>
+            <tbody id="inputTable">
+                <!-- 玩家輸入列 -->
+            </tbody>
+        </table>
+        
+        <button class="btn-sort" onclick="autoSortByPts()">⚡ 按當週分數自動排序名次</button>
+        <button id="submitBtn" onclick="submitCurrentWeek()">提交 Week 1 成績</button>
+        <button id="cancelEditBtn" class="danger-btn" style="display:none;" onclick="cancelEdit()">取消編輯</button>
+    </div>
+
+    <!-- 總排行榜 -->
+    <div class="card">
+        <h2>📊 總排行榜 (Leaderboard)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>排名</th>
+                    <th>玩家</th>
+                    <th>總得分</th>
+                    <th>總 Hits 扣分</th>
+                    <th>總淨得分</th>
+                    <th>累積盈虧 ($)</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard">
+                <!-- 排行榜動態生成 -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 歷史紀錄與備份 -->
+    <div class="card">
+        <h2>📜 歷史每週紀錄</h2>
+        <div id="historyLog">未有紀錄</div>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <h3>💾 數據安全備份與恢復</h3>
+        <div class="backup-btns">
+            <button class="btn-secondary" onclick="exportData()">📥 匯出備份檔 (JSON)</button>
+            <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📤 匯入備份檔</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+        </div>
+        <button class="danger-btn" onclick="resetAll()">⚠️ 重設所有數據</button>
+    </div>
+</div>
+
+<script>
+    let defaultConfig = {
+        playerNames: ["玩家 A", "玩家 B", "玩家 C", "玩家 D", "玩家 E", "玩家 F"],
+        rankPayouts: [50, 30, -15, -30, -30, -30], // 預設 6 人時的各名次 +/- 金額
+        w9WinnerPayout: 200,
+        w19WinnerPayout: 200
+    };
+
+    let config = JSON.parse(localStorage.getItem('fpl_v10_config')) || defaultConfig;
+    let history = JSON.parse(localStorage.getItem('fpl_v10_history')) || [];
+    let editingWeekIndex = null;
+
+    let currentInputData = [];
+
+    function saveState() {
+        localStorage.setItem('fpl_v10_config', JSON.stringify(config));
+        localStorage.setItem('fpl_v10_history', JSON.stringify(history));
+    }
+
+    function toggleConfig() {
+        let area = document.getElementById('configArea');
+        area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function addPlayer() {
+        let newNum = config.playerNames.length + 1;
+        config.playerNames.push(`玩家 ${newNum}`);
+        config.rankPayouts.push(-30); // 新增玩家預設輸 $30
+        initConfigInputs();
+    }
+
+    function removePlayer() {
+        if (config.playerNames.length <= 3) {
+            alert("最少需要有 3 位玩家！");
+            return;
+        }
+        config.playerNames.pop();
+        config.rankPayouts.pop();
+        initConfigInputs();
+    }
+
+    function updateFormulaPreview() {
+        let pCount = config.playerNames.length;
+        let sum = 0;
+        for (let i = 0; i < pCount; i++) {
+            let el = document.getElementById(`cfg_payout_${i}`);
+            let val = el ? (parseInt(el.value) || 0) : (config.rankPayouts[i] || 0);
+            sum += val;
+        }
+
+        let poolAdd = -sum; // 各人盈虧加總的相反數即為進入小 Pool 的金額
+        
+        let sumEl = document.getElementById('calcWeeklyNetSum');
+        let poolEl = document.getElementById('calcWeeklyPoolAdd');
+
+        if (sumEl) sumEl.innerText = `$${sum >= 0 ? '+' : ''}${sum}`;
+        if (poolEl) {
+            poolEl.innerText = `$${poolAdd >= 0 ? poolAdd : 0} ${poolAdd < 0 ? '(警告: 總輸出多過總收入)' : ''}`;
+        }
+    }
+
+    function initConfigInputs() {
+        document.getElementById('playerCountDisplay').innerText = config.playerNames.length;
+        
+        // 渲染玩家名稱輸入
+        let htmlNames = '';
+        config.playerNames.forEach((name, idx) => {
+            htmlNames += `<div class="config-item">
+                <label>玩家 ${idx + 1}</label>
+                <input type="text" id="cfg_player_${idx}" value="${name}">
+            </div>`;
+        });
+        document.getElementById('namesInputGrid').innerHTML = htmlNames;
+
+        // 確保 rankPayouts 長度與玩家數量一致
+        while (config.rankPayouts.length < config.playerNames.length) {
+            config.rankPayouts.push(-30);
+        }
+
+        // 渲染各名次金額輸入
+        let htmlPayouts = '';
+        config.playerNames.forEach((_, idx) => {
+            let val = config.rankPayouts[idx] !== undefined ? config.rankPayouts[idx] : -30;
+            let rankTitle = `第 ${idx + 1} 名 ($)`;
+            if (idx === 0) rankTitle = `🥇 第 1 名 ($)`;
+            else if (idx === 1) rankTitle = `🥈 第 2 名 ($)`;
+            else if (idx === 2) rankTitle = `🥉 第 3 名 ($)`;
+
+            htmlPayouts += `<div class="config-item">
+                <label>${rankTitle}</label>
+                <input type="number" id="cfg_payout_${idx}" value="${val}" oninput="updateFormulaPreview()">
+            </div>`;
+        });
+        document.getElementById('rankPayoutsGrid').innerHTML = htmlPayouts;
+
+        document.getElementById('cfg_w9WinnerPayout').value = config.w9WinnerPayout !== undefined ? config.w9WinnerPayout : 200;
+        document.getElementById('cfg_w19WinnerPayout').value = config.w19WinnerPayout !== undefined ? config.w19WinnerPayout : 200;
+
+        updateFormulaPreview();
+    }
+
+    function saveSettings() {
+        let newNames = [];
+        let newPayouts = [];
+        for(let i=0; i<config.playerNames.length; i++) {
+            let nameEl = document.getElementById(`cfg_player_${i}`);
+            let valName = nameEl ? nameEl.value.trim() : '';
+            newNames.push(valName || `玩家 ${i+1}`);
+
+            let payoutEl = document.getElementById(`cfg_payout_${i}`);
+            let valPayout = payoutEl ? (parseInt(payoutEl.value) || 0) : -30;
+            newPayouts.push(valPayout);
+        }
+        config.playerNames = newNames;
+        config.rankPayouts = newPayouts;
+
+        config.w9WinnerPayout = parseInt(document.getElementById('cfg_w9WinnerPayout').value) || 0;
+        config.w19WinnerPayout = parseInt(document.getElementById('cfg_w19WinnerPayout').value) || 0;
+
+        saveState();
+        alert("✅ 所有設定已儲存！");
+        initInputData();
+        renderInputTable();
+        recalculateAll();
+    }
+
+    function initInputData() {
+        if (editingWeekIndex !== null) return;
+        currentInputData = config.playerNames.map(name => ({ name: name, rawPts: '', hitsCount: 0 }));
+    }
+
+    function renderInputTable() {
+        let isEditing = editingWeekIndex !== null;
+        let targetWeek = isEditing ? history[editingWeekIndex].week : (history.length + 1);
+
+        document.getElementById('currentWeekDisplay').innerText = `Week ${history.length}`;
+        document.getElementById('inputTitle').innerText = isEditing ? `✏️ 編輯 Week ${targetWeek} 成績` : `📝 輸入 Week ${targetWeek} 成績`;
+        document.getElementById('submitBtn').innerText = isEditing ? `確認並提交 Week ${targetWeek} 成績` : `確認並提交 Week ${targetWeek} 成績`;
+        document.getElementById('cancelEditBtn').style.display = isEditing ? 'block' : 'none';
+
+        let card = document.getElementById('inputCard');
+        if (isEditing) card.classList.add('editing-mode');
+        else card.classList.remove('editing-mode');
+
+        // W9 或 W19 階段顯示專屬獎金輸入框
+        let midBox = document.getElementById('midStageInputArea');
+        if (targetWeek === 9 || targetWeek === 19) {
+            midBox.style.display = 'block';
+            document.getElementById('midStageWeekNum').innerText = targetWeek;
+            
+            let currentPool = getAccumulatedPoolBeforeWeek(targetWeek);
+            document.getElementById('currentAccumulatedPool').innerText = `$${currentPool}`;
+            
+            let payoutInput = document.getElementById('midStageWinnerPayout');
+            if (isEditing && history[editingWeekIndex].midStageWinnerPayout !== undefined) {
+                payoutInput.value = history[editingWeekIndex].midStageWinnerPayout;
+            } else {
+                let defaultPayout = targetWeek === 9 ? (config.w9WinnerPayout || 0) : (config.w19WinnerPayout || 0);
+                payoutInput.value = defaultPayout;
+            }
+
+            payoutInput.oninput = function() {
+                let winVal = parseInt(this.value) || 0;
+                let grandCalc = Math.max(0, currentPool - winVal);
+                document.getElementById('midStageGrandCalc').innerText = `$${grandCalc}`;
+            };
+            payoutInput.oninput();
+        } else {
+            midBox.style.display = 'none';
+        }
+
+        let html = '';
+        currentInputData.forEach((item, index) => {
+            let hitDeduction = (parseInt(item.hitsCount) || 0) * 4;
+            html += `<tr>
+                <td><span class="rank-badge">${index + 1}</span></td>
+                <td><b>${item.name}</b></td>
+                <td><input type="number" value="${item.rawPts}" onchange="updateRowData(${index}, 'rawPts', this.value)" placeholder="0"></td>
+                <td>
+                    <input type="number" value="${item.hitsCount}" onchange="updateRowData(${index}, 'hitsCount', this.value)" placeholder="0">
+                    ${hitDeduction > 0 ? `<span class="hit-note">(-${hitDeduction}分)</span>` : ''}
+                </td>
+                <td>
+                    <button class="btn-small btn-move" onclick="moveRow(${index}, -1)">⬆️</button>
+                    <button class="btn-small btn-move" onclick="moveRow(${index}, 1)">⬇️</button>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('inputTable').innerHTML = html;
+    }
+
+    function getAccumulatedPoolBeforeWeek(targetWeek) {
+        let pool = 0;
+        let rankSum = config.rankPayouts.reduce((a, b) => a + b, 0);
+        let weeklyGain = -rankSum;
+        if (weeklyGain < 0) weeklyGain = 0;
+
+        for (let i = 0; i < history.length; i++) {
+            let h = history[i];
+            if (editingWeekIndex !== null && i === editingWeekIndex) continue;
+            if (h.week <= targetWeek) {
+                pool += weeklyGain;
+                if ((h.week === 9 || h.week === 19) && h.week < targetWeek) {
+                    pool = 0;
+                }
+            }
+        }
+        pool += weeklyGain;
+        return pool;
+    }
+
+    function updateRowData(index, field, val) {
+        currentInputData[index][field] = val === '' ? '' : Math.max(0, parseInt(val) || 0);
+    }
+
+    function autoSortByPts() {
+        currentInputData.sort((a, b) => {
+            let ptsA = a.rawPts === '' ? -999 : parseInt(a.rawPts);
+            let ptsB = b.rawPts === '' ? -999 : parseInt(b.rawPts);
+            return ptsB - ptsA;
+        });
+        renderInputTable();
+    }
+
+    function moveRow(index, direction) {
+        let newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= currentInputData.length) return;
+        let temp = currentInputData[index];
+        currentInputData[index] = currentInputData[newIndex];
+        currentInputData[newIndex] = temp;
+        renderInputTable();
+    }
+
+    function submitCurrentWeek() {
+        for (let item of currentInputData) {
+            if (item.rawPts === '' || isNaN(item.rawPts)) {
+                alert(`請輸入 ${item.name} 的當週得分！`);
+                return;
+            }
+        }
+
+        let weekNumber = editingWeekIndex !== null ? history[editingWeekIndex].week : (history.length + 1);
+
+        let processedData = currentInputData.map((item, rank) => {
+            let hitsCount = parseInt(item.hitsCount) || 0;
+            let hitDeduction = hitsCount * 4;
+            let cash = config.rankPayouts[rank] !== undefined ? config.rankPayouts[rank] : -30;
+
+            return {
+                name: item.name,
+                rawPts: parseInt(item.rawPts),
+                hitsCount: hitsCount,
+                hitDeduction: hitDeduction,
+                cash: cash
+            };
+        });
+
+        let weekObj = { week: weekNumber, data: processedData };
+
+        if (weekNumber === 9 || weekNumber === 19) {
+            let winPayout = parseInt(document.getElementById('midStageWinnerPayout').value) || 0;
+            weekObj.midStageWinnerPayout = winPayout;
+        }
+
+        if (editingWeekIndex !== null) {
+            history[editingWeekIndex] = weekObj;
+            editingWeekIndex = null;
+        } else {
+            history.push(weekObj);
+        }
+
+        saveState();
+        recalculateAll();
+        initInputData();
+        renderInputTable();
+    }
+
+    function editWeek(index) {
+        editingWeekIndex = index;
+        currentInputData = JSON.parse(JSON.stringify(history[index].data));
+        renderInputTable();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+        editingWeekIndex = null;
+        initInputData();
+        renderInputTable();
+    }
+
+    function recalculateAll() {
+        let playerStats = config.playerNames.map(name => ({ 
+            name: name, 
+            totalRawPts: 0, 
+            totalHitDeduction: 0, 
+            totalNetPts: 0, 
+            totalCash: 0 
+        }));
+        
+        let weeklyPool = 0;
+        let grandPool = 0;
+
+        let rankSum = config.rankPayouts.reduce((a, b) => a + b, 0);
+        let weeklyPoolGain = -rankSum;
+        if (weeklyPoolGain < 0) weeklyPoolGain = 0;
+
+        history.forEach((h) => {
+            let wNum = h.week;
+            
+            weeklyPool += weeklyPoolGain;
+
+            h.data.forEach(d => {
+                let p = playerStats.find(x => x.name === d.name);
+                if (p) {
+                    p.totalRawPts += d.rawPts;
+                    p.totalHitDeduction += d.hitDeduction;
+                    p.totalNetPts += (d.rawPts - d.hitDeduction);
+                    p.totalCash += d.cash;
+                }
+            });
+
+            h.note = "";
+
+            // W9 / W19 階段結算
+            if (wNum === 9 || wNum === 19) {
+                let leader = [...playerStats].sort((a, b) => b.totalNetPts - a.totalNetPts)[0];
+                let defaultPayout = wNum === 9 ? (config.w9WinnerPayout || 0) : (config.w19WinnerPayout || 0);
+                let winnerBonus = h.midStageWinnerPayout !== undefined ? h.midStageWinnerPayout : defaultPayout;
+                
+                if (winnerBonus > weeklyPool) winnerBonus = weeklyPool;
+
+                let toGrandPool = weeklyPool - winnerBonus;
+
+                leader.totalCash += winnerBonus;
+                grandPool += toGrandPool;
+                
+                h.note = ` 🎉 W${wNum} 階段結算：總淨得分第一名 (${leader.name}) 獨得 $${winnerBonus}！剩餘 $${toGrandPool} 自動滾入大 Pool`;
+                weeklyPool = 0;
+            } else if (wNum === 38) {
+                let finalPool = weeklyPool + grandPool;
+                let sorted = [...playerStats].sort((a, b) => b.totalNetPts - a.totalNetPts);
+                
+                if(sorted[0]) sorted[0].totalCash += Math.round(finalPool * 0.50);
+                if(sorted[1]) sorted[1].totalCash += Math.round(finalPool * 0.35);
+                if(sorted[2]) sorted[2].totalCash += Math.round(finalPool * 0.15);
+                
+                h.note = ` 🏆 W38 年終大結算：總彩池 $${finalPool} 已由前 3 名按 50%/35%/15% 瓜分！`;
+            }
+        });
+
+        document.getElementById('weeklyPool').innerText = `$${weeklyPool}`;
+        document.getElementById('grandPool').innerText = `$${grandPool}`;
+
+        let sortedLeaderboard = [...playerStats].sort((a, b) => b.totalNetPts - a.totalNetPts);
+        let lbHtml = '';
+        sortedLeaderboard.forEach((p, index) => {
+            let cashColor = p.totalCash >= 0 ? 'green' : 'red';
+            lbHtml += `<tr>
+                <td><b>${index + 1}</b></td>
+                <td>${p.name}</td>
+                <td>${p.totalRawPts}</td>
+                <td style="color:#d9534f;">-${p.totalHitDeduction}</td>
+                <td><b>${p.totalNetPts}</b></td>
+                <td style="color:${cashColor}; font-weight:bold;">${p.totalCash >= 0 ? '+' : ''}${p.totalCash}</td>
+            </tr>`;
+        });
+        document.getElementById('leaderboard').innerHTML = lbHtml;
+
+        let historyHtml = '';
+        for (let i = history.length - 1; i >= 0; i--) {
+            let h = history[i];
+            historyHtml += `<div style="margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <b>Week ${h.week}</b>
+                    <button class="btn-small btn-edit" onclick="editWeek(${i})">✏️ 編輯這週</button>
+                </div>
+                ${h.note ? `<div class="milestone" style="margin:4px 0;">${h.note}</div>` : ''}
+                <small style="color:#555;">`;
+            h.data.forEach((d, rank) => {
+                let hitText = d.hitsCount > 0 ? ` [${d.hitsCount}Hits=-${d.hitDeduction}分]` : '';
+                historyHtml += `${rank+1}.${d.name}(${d.rawPts}分${hitText}, ${d.cash>=0?'+':''}${d.cash}$) `;
+            });
+            historyHtml += `</small></div>`;
+        }
+        document.getElementById('historyLog').innerHTML = historyHtml || '未有紀錄';
+    }
+
+    function exportData() {
+        let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ config, history }));
+        let downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `FPL_League_Backup_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    function importData(event) {
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                let imported = JSON.parse(e.target.result);
+                if (imported.config && imported.history) {
+                    config = imported.config;
+                    history = imported.history;
+                    saveState();
+                    initConfigInputs();
+                    initInputData();
+                    renderInputTable();
+                    recalculateAll();
+                    alert("✅ 數據匯入成功！");
+                } else {
+                    alert("❌ 檔案格式不正確！");
+                }
+            } catch (err) {
+                alert("❌ 無法解析備份檔案！");
+            }
+        };
+        reader.readAsText(event.target.files[0]);
+    }
+
+    function resetAll() {
+        if (confirm("⚠️ 確定要重設所有數據嗎？所有每週紀錄將會被清空！建議先下載備份！")) {
+            history = [];
+            saveState();
+            initInputData();
+            renderInputTable();
+            recalculateAll();
+        }
+    }
+
+    initConfigInputs();
+    initInputData();
+    renderInputTable();
+    recalculateAll();
+</script>
+
+</body>
+</html>
