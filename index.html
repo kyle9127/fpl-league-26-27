@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>英超經理人 聯賽計分台 (Passcode 版)</title>
-    <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 15px; color: #333; }
@@ -46,7 +45,7 @@
     <!-- 🔑 4 位數字 Passcode 驗證區 -->
     <div id="authCard" class="auth-box">
         <h2>🔑 輸入 4 位數字 Passcode</h2>
-        <p style="font-size:12px; color:#00ff87;">輸入任何 4 位數字即可直接進入或自動建立專屬聯賽</p>
+        <p style="font-size:12px; color:#00ff87;">輸入任何 4 位數字即可直接進入或自動載入專屬聯賽</p>
         <input type="password" id="passcode" class="passcode-input" maxlength="4" placeholder="••••" pattern="[0-9]*" inputmode="numeric"><br>
         
         <div style="max-width: 280px; margin: 15px auto 0 auto;">
@@ -169,7 +168,14 @@
     const SUPABASE_URL = 'https://tdmiktmcxzwqwgnobnrl.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_FHTZ1d-nvHek9ULQtcB6dw_tIH4AEKZ';
 
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // 顯式啟用 window.localStorage 持久化儲存
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            storage: window.localStorage
+        }
+    });
 
     let defaultConfig = {
         playerNames: ["玩家 A", "玩家 B", "玩家 C", "玩家 D", "玩家 E", "玩家 F"],
@@ -182,16 +188,7 @@
     let history = [];
     let editingWeekIndex = null;
     let currentInputData = [];
-    let currentUser = null;
-
-    // 格式化 Passcode，確保補滿 4 位數，避免格式混亂
-    function getAuthFromCode(code) {
-        let cleanCode = code.toString().padStart(4, '0');
-        return {
-            email: `fpl_league_${cleanCode}@fpl.local`,
-            password: `FPL_Pass_${cleanCode}_#2026`
-        };
-    }
+    let currentPasscode = null;
 
     function getCodeInput() {
         let code = document.getElementById('passcode').value.trim();
@@ -203,13 +200,16 @@
     }
 
     async function checkAuth() {
-        const { data: { user } } = await supabaseClient.auth.getUser();
-        if (user) {
-            currentUser = user;
+        // 先嘗試從 localStorage 恢復上次登入的 Passcode
+        if (!currentPasscode) {
+            currentPasscode = localStorage.getItem('fpl_passcode_active');
+        }
+
+        if (currentPasscode) {
+            document.getElementById('passcode').value = currentPasscode;
             document.getElementById('authCard').style.display = 'none';
             document.getElementById('mainApp').style.display = 'block';
-            let passcodeDisplay = user.email.replace('fpl_league_', '').replace('@fpl.local', '');
-            document.getElementById('userDisplay').innerText = `🔑 Passcode: ${passcodeDisplay}`;
+            document.getElementById('userDisplay').innerText = `🔑 Passcode: ${currentPasscode}`;
             await loadCloudData();
         } else {
             document.getElementById('authCard').style.display = 'block';
@@ -217,55 +217,50 @@
         }
     }
 
-    // 🧠 智慧驗證：先嘗試登入，失敗則自動註冊，一鍵無縫通關
     async function handleSmartAuth() {
         let code = getCodeInput();
         if (!code) return;
 
-        let { email, password } = getAuthFromCode(code);
-
-        // 步驟 1: 先嘗試登入
-        let { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-        if (!loginError && loginData.user) {
-            checkAuth();
-            return;
-        }
-
-        // 步驟 2: 如果登入失敗，嘗試註冊（建立新聯賽）
-        let { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({ email, password });
-
-        if (signUpError) {
-            alert(`❌ 驗證失敗：${signUpError.message || '請嘗試更換一個 4 位數字！'}`);
-        } else {
-            // 註冊成功後自動登入
-            await supabaseClient.auth.signInWithPassword({ email, password });
-            checkAuth();
-        }
+        currentPasscode = code;
+        localStorage.setItem('fpl_passcode_active', code);
+        await checkAuth();
     }
 
-    async function handleLogout() {
-        await supabaseClient.auth.signOut();
-        currentUser = null;
+    function handleLogout() {
+        localStorage.removeItem('fpl_passcode_active');
+        currentPasscode = null;
         document.getElementById('passcode').value = '';
         checkAuth();
     }
 
     async function saveState() {
-        if (!currentUser) return;
+        if (!currentPasscode) return;
+        const targetId = `passcode_${currentPasscode}`;
         const { error } = await supabaseClient
             .from('leagues')
-            .upsert({ user_id: currentUser.id, config, history }, { onConflict: 'user_id' });
-        if (error) console.error("雲端同步失敗:", error);
+            .upsert({ user_id: targetId, config, history }, { onConflict: 'user_id' });
+
+        if (error) {
+            console.error("雲端同步失敗:", error);
+            alert("⚠️ 儲存失敗！請檢查網路連線或權限。");
+        }
     }
 
     async function loadCloudData() {
-        if (!currentUser) return;
+        if (!currentPasscode) return;
+        const targetId = `passcode_${currentPasscode}`;
+
         let { data, error } = await supabaseClient
             .from('leagues')
             .select('*')
-            .eq('user_id', currentUser.id)
-            .single();
+            .eq('user_id', targetId)
+            .maybeSingle();
+
+        if (error) {
+            console.error("載入失敗:", error);
+            alert("⚠️ 無法載入雲端紀錄！");
+            return;
+        }
 
         if (data) {
             config = data.config || defaultConfig;
@@ -274,6 +269,7 @@
             config = defaultConfig;
             history = [];
         }
+
         initConfigInputs();
         initInputData();
         renderInputTable();
@@ -567,6 +563,7 @@
         }
     }
 
+    // 網頁載入時自動執行驗證與恢復數據
     checkAuth();
 </script>
 
