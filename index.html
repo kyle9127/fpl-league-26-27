@@ -168,7 +168,6 @@
     const SUPABASE_URL = 'https://tdmiktmcxzwqwgnobnrl.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_FHTZ1d-nvHek9ULQtcB6dw_tIH4AEKZ';
 
-    // 顯式啟用 window.localStorage 持久化儲存
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: {
             persistSession: true,
@@ -200,7 +199,6 @@
     }
 
     async function checkAuth() {
-        // 先嘗試從 localStorage 恢復上次登入的 Passcode
         if (!currentPasscode) {
             currentPasscode = localStorage.getItem('fpl_passcode_active');
         }
@@ -242,42 +240,39 @@
 
         if (error) {
             console.error("雲端同步失敗:", error);
-            alert("⚠️ 儲存失敗！請檢查網路連線或權限。");
+            alert("⚠️ 儲存失敗！請檢查連線。");
         }
     }
 
     async function loadCloudData() {
-       if (!currentPasscode) return;
-    const targetId = `passcode_${currentPasscode}`;
+        if (!currentPasscode) return;
+        const targetId = `passcode_${currentPasscode}`;
 
-    let { data, error } = await supabaseClient
-        .from('leagues')
-        .select('*')
-        .eq('user_id', targetId)
-        .maybeSingle();
+        let { data, error } = await supabaseClient
+            .from('leagues')
+            .select('*')
+            .eq('user_id', targetId)
+            .maybeSingle();
 
-    // 只在真正的網絡或數據庫異常時才報錯
-    if (error && error.code !== 'PGRST116') {
-        console.error("載入失敗:", error);
-        alert("⚠️ 無法連線至雲端，請檢查網路連線或 SQL 權限設定！");
-        return;
-    }
+        if (error && error.code !== 'PGRST116') {
+            console.error("載入失敗:", error);
+            alert("⚠️ 連線至雲端時出錯，請稍後重試。");
+            return;
+        }
 
-    // 如果找到舊紀錄就載入；如果完全是新 Passcode，就初始化預設資料
-    if (data) {
-        config = data.config || defaultConfig;
-        history = data.history || [];
-    } else {
-        config = defaultConfig;
-        history = [];
-        // 自動幫全新 Passcode 在雲端建立初始化紀錄
-        await saveState();
-    }
+        if (data) {
+            config = data.config || defaultConfig;
+            history = data.history || [];
+        } else {
+            config = defaultConfig;
+            history = [];
+            await saveState(); // 如果是全新 Passcode，自動幫他在雲端新增紀錄
+        }
 
-    initConfigInputs();
-    initInputData();
-    renderInputTable();
-    recalculateAll();
+        initConfigInputs();
+        initInputData();
+        renderInputTable();
+        recalculateAll();
     }
 
     function toggleConfig() {
@@ -567,7 +562,6 @@
         }
     }
 
-    // 網頁載入時自動執行驗證與恢復數據
     checkAuth();
 </script>
 
