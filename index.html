@@ -186,11 +186,11 @@
     let currentInputData = [];
     let currentUser = null;
 
-    // 轉換為標準格式 Email 及 Password
+    // 加強 Password 格式以符合 Supabase 嚴格密碼原則
     function getAuthFromCode(code) {
         return {
             email: `league_${code}@gmail.com`,
-            password: `Pass_${code}_SecureKey`
+            password: `FPL_League_${code}_Secured_#2026`
         };
     }
 
@@ -227,7 +227,7 @@
         let { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
         if (error) {
-            alert("登入失敗：此 Passcode 未被建立，或者 Passcode 輸入錯誤！\n如果是第一次使用，請按「建立新聯賽」。");
+            alert("❌ 登入失敗：Passcode 未建立或輸入錯誤！\n（如果是首次使用，請點選「建立新聯賽」）");
         } else {
             checkAuth();
         }
@@ -240,14 +240,23 @@
 
         let { email, password } = getAuthFromCode(code);
 
-        // 先嘗試註冊
+        // 嘗試註冊
         let { data, error } = await supabaseClient.auth.signUp({ email, password });
 
         if (error) {
-            alert("建立失敗：此 Passcode 已被其他人使用，請換另一個 4 位數字！");
+            // 如果報錯，嘗試直接登入（可能 Passcode 之前已成功註冊過）
+            let { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({ email, password });
+            
+            if (!loginError) {
+                alert(`🎉 成功登入已有 Passcode [${code}]！`);
+                checkAuth();
+                return;
+            }
+
+            alert(`⚠️ 建立失敗：${error.message || '此 Passcode 無法使用，請嘗試其他 4 位數字！'}`);
         } else {
             alert(`🎉 Passcode [${code}] 建立成功！即將進入系統。`);
-            // 註冊成功後直接進行登入
+            // Supabase 註冊成功後自動登入
             await supabaseClient.auth.signInWithPassword({ email, password });
             checkAuth();
         }
